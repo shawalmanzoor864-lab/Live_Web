@@ -225,7 +225,7 @@ async function warm(list){
     await c.put(u,new Response(new Blob(ch),{headers:r.headers}))}else await c.put(u,r);
    done+=sz;setP(done/total)}
   catch(e){console.warn('skip',u)}}}
-let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0;
+let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false;
 async function boot(){
  try{
   if(/FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\//i.test(navigator.userAgent))msg.textContent='Tip: open this link in Chrome or Safari so the camera can start';
@@ -273,7 +273,7 @@ function render3D(){if(!r3||!cam3)return;
  if(m3){const on=sel.Necklaces==='n1'&&found&&mode&&T3;rig3.visible=!!on;
   if(on){const A=adj.n1||{s:1,x:0,y:0};rig3.position.copy(T3.pos);rig3.quaternion.copy(T3.q);rig3.scale.setScalar(T3.W);
    m3.position.set(A.x,-1.1-A.y,-.2);m3.scale.setScalar(m3.userData.k*A.s)}}
- if(mw){const on=sel.Watches==='w1'&&H3&&mode&&H3.vis>.1;mw.visible=!!on;
+ if(mw){const on=sel.Watches==='w1'&&H3&&mode;mw.visible=!!on;
   if(on){const A=adj.w1||{s:1,x:0,y:0,r:0},k=H3.L;mw.position.copy(H3.pos).add(new THREE.Vector3(A.x*k*1.5,-A.y*k*1.5,0));
    mw.quaternion.copy(H3.q).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-(A.r||0)*Math.PI/180));mw.scale.setScalar(.66*k*A.s)}}
  r3.render(sc3,cam3)}
@@ -283,15 +283,16 @@ function thumb(g){const ts=new THREE.Scene();ts.environment=sc3.environment;ts.a
 /* ---------- hand tracking (only loads when a watch is tried on) ---------- */
 async function loadHand(){if(hand||handBusy||!lmMod)return;handBusy=true;msg.textContent='Loading hand tracking…';
  const urls=(lmLocal?['vendor/hand_landmarker.task']:[]).concat('https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task');
- for(const u of urls){for(const d of [fb,'CPU']){try{hand=await lmMod.HandLandmarker.createFromOptions(lmFs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numHands:1});break}catch(e){}}if(hand)break}
+ for(const u of urls){for(const d of (handCPU?['CPU']:[fb,'CPU'])){try{hand=await lmMod.HandLandmarker.createFromOptions(lmFs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numHands:1});break}catch(e){}}if(hand)break}
  msg.textContent=hand?'Hand tracking ready — show the back of your wrist to the camera':'Hand tracking unavailable on this device';handBusy=false}
-function setHand(res){const Lm=res.landmarks&&res.landmarks[0];if(!Lm){H3=null;return}
+function setHand(res){const Lm=res.landmarks&&res.landmarks[0],w=sel.Watches==='w1';
+ if(!Lm){H3=null;if(w)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
+ if(w)msg.textContent='Hand detected ✓';
  const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,-Lm[i].z*vw),w0=p(0),f=p(9).sub(w0),len=f.length();f.normalize();
- const n=new THREE.Vector3().crossVectors(p(5).sub(p(17)).normalize(),f).normalize();
- const lab=res.handedness&&res.handedness[0]&&res.handedness[0][0].categoryName,back=(lab==='Left')?n.clone().negate():n.clone(),vis=back.z;
+ const back=new THREE.Vector3().crossVectors(p(5).sub(p(17)),f).normalize();if(back.z<0)back.negate();
  back.sub(f.clone().multiplyScalar(back.dot(f))).normalize();const z=new THREE.Vector3().crossVectors(f,back).normalize();
  const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,back,z)),pos=w0.clone().sub(f.clone().multiplyScalar(len*.3)).sub(back.clone().multiplyScalar(len*.06));
- if(!H3)H3={pos,q,L:len,vis};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(len-H3.L)*.6;H3.vis=vis}}
+ if(!H3)H3={pos,q,L:len};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(len-H3.L)*.6}}
 
 /* ---------- face tracking ---------- */
 function setPose(lm_){const pt=i=>({x:lm_[i].x*vw,y:lm_[i].y*vh}),a=pt(234),b=pt(454),n=pt(1),dx=b.x-a.x,dy=b.y-a.y,W=Math.hypot(dx,dy),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
@@ -303,7 +304,7 @@ function setPose(lm_){const pt=i=>({x:lm_[i].x*vw,y:lm_[i].y*vh}),a=pt(234),b=pt
   const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z)),pos=A.add(B).multiplyScalar(.5);
   if(!T3)T3={pos,q,W:W3};else{T3.pos.lerp(pos,.6);T3.q.slerp(q,.6);T3.W+=(W3-T3.W)*.6}}}
 function handle(r){const f=r.faceLandmarks&&r.faceLandmarks[0];
- if(f){setPose(f);found=true;msg.textContent='Face detected ✓'}else{found=false;msg.textContent='No face found — face the camera in good light'}}
+ if(f){setPose(f);found=true;if(sel.Watches!=='w1')msg.textContent='Face detected ✓'}else{found=false;if(sel.Watches!=='w1')msg.textContent='No face found — face the camera in good light'}}
 async function setRun(m){if(run!==m){await lm.setOptions({runningMode:m});run=m}}
 
 /* ---------- camera / photo / snapshot ---------- */
@@ -329,7 +330,7 @@ function loop(){requestAnimationFrame(loop);
  if(lm&&mode==='cam'&&run==='VIDEO'&&vid.readyState>=2&&vid.currentTime!==lastT&&now-lastRun>28&&!rebuilding){lastT=vid.currentTime;lastRun=now;
   try{handle(lm.detectForVideo(vid,now))}catch(e){if(fb==='GPU'){fb='CPU';rebuilding=true;lmMk('CPU').then(x=>{lm=x;run='VIDEO'}).finally(()=>rebuilding=false)}}}
  if(sel.Watches==='w1'&&lmMod&&!hand&&!handBusy)loadHand();
- if(hand&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&now-lastHand>40){lastHand=now;try{setHand(hand.detectForVideo(vid,now))}catch(e){H3=null}}
+ if(hand&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&now-lastHand>40){lastHand=now;try{setHand(hand.detectForVideo(vid,now))}catch(e){H3=null;if(!handCPU){handCPU=true;hand=null}}}
  draw();render3D()}
 renderShop();loop();boot();
 </script>
