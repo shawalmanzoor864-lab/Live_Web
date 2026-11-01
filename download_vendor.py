@@ -18,4 +18,5 @@ get("https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landma
 get(J + "three@0.147.0/build/three.min.js", "three.min.js")
 get(J + "three@0.147.0/examples/js/loaders/GLTFLoader.js", "GLTFLoader.js")
 json.dump({"files": files}, open("vendor/manifest.json", "w"))
+get("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", "hand_landmarker.task")  # only downloaded by visitors who try a watch
 print("Done. Now deploy the whole folder.")
