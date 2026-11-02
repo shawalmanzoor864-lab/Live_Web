@@ -265,7 +265,7 @@ async function load3D(local){try{
  try{const gw=await new Promise((ok,no)=>new THREE.GLTFLoader().load('models/w1.glb',ok,undefined,no));
   const wm=gw.scene,wb=new THREE.Box3().setFromObject(wm),wc=wb.getCenter(new THREE.Vector3()),ws=wb.getSize(new THREE.Vector3());
   wm.position.set(-wc.x,-(wb.min.y+.45*ws.y),-wc.z);const wf=new THREE.Group();wf.add(wm);wf.scale.setScalar(1/ws.z);
-  wm.traverse(o=>{if(o.isMesh){if(o.material.map){o.material.metalness=.5;o.material.roughness=.35}o.material.envMapIntensity=1.3}});
+  wm.traverse(o=>{if(o.isMesh){if(o.material.map){o.material.metalness=.5;o.material.roughness=.35}else o.material.color.multiplyScalar(.7);o.material.envMapIntensity=1.3}});
   rigW=new THREE.Group();rigW.add(wf);rigW.visible=false;sc3.add(rigW);mw=rigW;
   ITEMS.push({id:'w1',cat:'Watches',name:'Luxury Watch',price:12500,img:thumb(wf),contain:1,type:'watch',w:1});renderShop()}catch(e){console.info('no watch model',e)}
  }catch(e){console.warn('3D layer unavailable — using flat necklace',e);r3=null;m3=null}}
@@ -275,7 +275,7 @@ function render3D(){if(!r3||!cam3)return;
    m3.position.set(A.x,-1.1-A.y,-.2);m3.scale.setScalar(m3.userData.k*A.s)}}
  if(mw){const on=sel.Watches==='w1'&&H3&&mode;mw.visible=!!on;
   if(on){const A=adj.w1||{s:1,x:0,y:0,r:0},k=H3.L;mw.position.copy(H3.pos).add(new THREE.Vector3(A.x*k*1.5,-A.y*k*1.5,0));
-   mw.quaternion.copy(H3.q).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-(A.r||0)*Math.PI/180));mw.scale.setScalar(.66*k*A.s)}}
+   mw.quaternion.copy(H3.q).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-(A.r||0)*Math.PI/180));mw.scale.setScalar(.85*k*A.s)}}
  r3.render(sc3,cam3)}
 function thumb(g){const ts=new THREE.Scene();ts.environment=sc3.environment;ts.add(new THREE.AmbientLight(0xffffff,.5));const c=g.clone();c.rotation.set(.55,-.7,0);ts.add(c);
  const cm=new THREE.PerspectiveCamera(30,1.2,.05,50);cm.position.set(0,.1,3.4);cm.lookAt(0,0,0);r3.setSize(480,400,false);r3.render(ts,cm);const u=r3.domElement.toDataURL('image/png');r3.setSize(vw,vh,false);return u}
@@ -288,10 +288,9 @@ async function loadHand(){if(hand||handBusy||!lmMod)return;handBusy=true;msg.tex
 function setHand(res){const Lm=res.landmarks&&res.landmarks[0],w=sel.Watches==='w1';
  if(!Lm){H3=null;if(w)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
  if(w)msg.textContent='Hand detected ✓';
- const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,-Lm[i].z*vw),w0=p(0),f=p(9).sub(w0),len=f.length();f.normalize();
- const back=new THREE.Vector3().crossVectors(p(5).sub(p(17)),f).normalize();if(back.z<0)back.negate();
- back.sub(f.clone().multiplyScalar(back.dot(f))).normalize();const z=new THREE.Vector3().crossVectors(f,back).normalize();
- const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,back,z)),pos=w0.clone().sub(f.clone().multiplyScalar(len*.3)).sub(back.clone().multiplyScalar(len*.06));
+ const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,0),w0=p(0),f=p(9).sub(w0),len=f.length();f.normalize();
+ const back=new THREE.Vector3(0,0,1);const z=new THREE.Vector3().crossVectors(f,back).normalize();
+ const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,back,z)),pos=w0.clone().sub(f.clone().multiplyScalar(len*.25));
  if(!H3)H3={pos,q,L:len};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(len-H3.L)*.6}}
 
 /* ---------- face tracking ---------- */
