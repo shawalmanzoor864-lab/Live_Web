@@ -196,13 +196,14 @@ function renderShop(){
  const cats=['All',...new Set(ITEMS.map(i=>i.cat))];
  $('tabs').innerHTML=cats.map(c=>`<button class="tab ${c===filter?'on':''}" data-c="${c}">${c}</button>`).join('');
  $('grid').innerHTML=ITEMS.filter(i=>filter==='All'||i.cat===filter).map(i=>`<div class="card ${sel[i.cat]===i.id?'on':''}"><div class="ph"><img src="${i.img}" alt="${i.name}"${i.contain?' style="object-fit:contain;padding:18px;mix-blend-mode:multiply"':''}></div><div class="bd"><small>${i.cat}</small><h3>${i.name}</h3><div class="pr">${fmt(i.price)}</div><div class="row"><button class="btn" data-t="${i.id}">${sel[i.cat]===i.id?'Remove try-on':'Try on'}</button><button class="btn ghost" data-a="${i.id}">Add to bag</button></div></div></div>`).join('');
- $('worn').innerHTML=Object.values(sel).map(id=>{const i=ITEMS.find(x=>x.id===id);const A=adj[i.id]||{s:1,x:0,y:0},sl=(k,l,mn,mx,st)=>`<label>${l}<input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${A[k]||(k==='s'?1:0)}"></label>`;return `<div class="chip"><span>${i.name}<br><small style="opacity:.6">${fmt(i.price)}</small></span><button data-r="${i.cat}">✕</button><div class="adj" data-i="${i.id}">${sl('s','Size',.5,2,.02)}${sl('x',i.type==='ear'?'Spread':'Left ↔ Right',-.3,.3,.005)}${sl('y','Up ↕ Down',-.4,.4,.005)}${(i.type==='hat'||i.type==='glass'||i.type==='watch')?sl('r','Tilt °',-45,45,1):''}<button class="btn ghost" data-z="${i.id}" style="padding:6px;font-size:12px">Reset alignment</button></div></div>`}).join('')||'<p style="opacity:.6;font-size:14px">Nothing selected yet.</p>';
+ $('worn').innerHTML=Object.values(sel).map(id=>{const i=ITEMS.find(x=>x.id===id);const A=adj[i.id]||{s:1,x:0,y:0},sl=(k,l,mn,mx,st)=>`<label>${l}<input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${A[k]||(k==='s'?1:0)}"></label>`;return `<div class="chip"><span>${i.name}<br><small style="opacity:.6">${fmt(i.price)}</small></span><button data-r="${i.cat}">✕</button><div class="adj" data-i="${i.id}">${sl('s','Size',.5,2,.02)}${sl('x',i.type==='ear'?'Spread':'Left ↔ Right',-.3,.3,.005)}${sl('y','Up ↕ Down',-.4,.4,.005)}${(i.type==='hat'||i.type==='glass'||i.type==='watch')?sl('r','Tilt °',-45,45,1):''}${i.type==='watch'?'<button class="btn ghost" data-fl="1" style="padding:6px;font-size:12px">Flip dial side (use if dial shows on the palm)</button>':''}<button class="btn ghost" data-z="${i.id}" style="padding:6px;font-size:12px">Reset alignment</button></div></div>`}).join('')||'<p style="opacity:.6;font-size:14px">Nothing selected yet.</p>';
  $('cart').textContent=`Bag · ${bag.length} · ${fmt(bag.reduce((s,i)=>s+i.price,0))}`}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-c],[data-t],[data-a],[data-r],[data-z]');if(!b)return;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-c],[data-t],[data-a],[data-r],[data-z],[data-fl]');if(!b)return;
  if(b.dataset.c)filter=b.dataset.c;
  if(b.dataset.t){const i=ITEMS.find(x=>x.id===b.dataset.t);if(sel[i.cat]===i.id)delete sel[i.cat];else sel[i.cat]=i.id;if(!mode)$('studio').scrollIntoView({behavior:'smooth'})}
  if(b.dataset.r)delete sel[b.dataset.r];
  if(b.dataset.z)delete adj[b.dataset.z];
+ if(b.dataset.fl){flipW=!flipW;H3=null}
  if(b.dataset.a){const i=ITEMS.find(x=>x.id===b.dataset.a);bag.push(i);toast(i.name+' added to bag')}
  renderShop()});
 
@@ -225,7 +226,7 @@ async function warm(list){
     await c.put(u,new Response(new Blob(ch),{headers:r.headers}))}else await c.put(u,r);
    done+=sz;setP(done/total)}
   catch(e){console.warn('skip',u)}}}
-let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false;
+let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false,flipW=false;
 async function boot(){
  try{
   if(/FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\//i.test(navigator.userAgent))msg.textContent='Tip: open this link in Chrome or Safari so the camera can start';
@@ -266,6 +267,7 @@ async function load3D(local){try{
   const wm=gw.scene,wb=new THREE.Box3().setFromObject(wm),wc=wb.getCenter(new THREE.Vector3()),ws=wb.getSize(new THREE.Vector3());
   wm.position.set(-wc.x,-(wb.min.y+.45*ws.y),-wc.z);const wf=new THREE.Group();wf.add(wm);wf.scale.setScalar(1/ws.z);
   wm.traverse(o=>{if(o.isMesh){if(o.material.map){o.material.metalness=.5;o.material.roughness=.35}else o.material.color.multiplyScalar(.7);o.material.envMapIntensity=1.3}});
+  const occ2=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.75,32),new THREE.MeshBasicMaterial({colorWrite:false}));occ2.rotation.z=Math.PI/2;occ2.renderOrder=-1;wf.add(occ2);
   rigW=new THREE.Group();rigW.add(wf);rigW.visible=false;sc3.add(rigW);mw=rigW;
   ITEMS.push({id:'w1',cat:'Watches',name:'Luxury Watch',price:12500,img:thumb(wf),contain:1,type:'watch',w:1});renderShop()}catch(e){console.info('no watch model',e)}
  }catch(e){console.warn('3D layer unavailable — using flat necklace',e);r3=null;m3=null}}
@@ -285,13 +287,19 @@ async function loadHand(){if(hand||handBusy||!lmMod)return;handBusy=true;msg.tex
  const urls=(lmLocal?['vendor/hand_landmarker.task']:[]).concat('https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task');
  for(const u of urls){for(const d of (handCPU?['CPU']:[fb,'CPU'])){try{hand=await lmMod.HandLandmarker.createFromOptions(lmFs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numHands:1});break}catch(e){}}if(hand)break}
  msg.textContent=hand?'Hand tracking ready — show the back of your wrist to the camera':'Hand tracking unavailable on this device';handBusy=false}
-function setHand(res){const Lm=res.landmarks&&res.landmarks[0],w=sel.Watches==='w1';
- if(!Lm){H3=null;if(w)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
- if(w)msg.textContent='Hand detected ✓';
- const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,0),w0=p(0),f=p(9).sub(w0),len=f.length();f.normalize();
- const back=new THREE.Vector3(0,0,1);const z=new THREE.Vector3().crossVectors(f,back).normalize();
- const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,back,z)),pos=w0.clone().sub(f.clone().multiplyScalar(len*.25));
- if(!H3)H3={pos,q,L:len};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(len-H3.L)*.6}}
+function setHand(res){const Lm=res.landmarks&&res.landmarks[0],WL=res.worldLandmarks&&res.worldLandmarks[0],wt=sel.Watches==='w1';
+ if(!Lm){H3=null;if(wt)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
+ if(wt)msg.textContent='Hand detected ✓';
+ const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,0),w=i=>WL?new THREE.Vector3(WL[i].x,-WL[i].y,-WL[i].z):new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,-Lm[i].z*vw);
+ const p0=p(0),f2=p(9).sub(p0),len2=f2.length();f2.normalize();
+ const fw=w(9).sub(w(0)),lenW=fw.length();fw.normalize();
+ const n=new THREE.Vector3().crossVectors(w(5).sub(w(17)),fw).normalize();
+ const isRight=res.handedness&&res.handedness[0]&&res.handedness[0][0].categoryName==='Left';   // camera image is not mirrored, so the label is swapped
+ const back=(isRight!==flipW)?n.clone().negate():n.clone();
+ back.sub(fw.clone().multiplyScalar(back.dot(fw))).normalize();const z=new THREE.Vector3().crossVectors(fw,back).normalize();
+ const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fw,back,z));
+ const L=WL?lenW*Math.max(p(5).sub(p(17)).length()/w(5).sub(w(17)).length(),len2/lenW):len2,pos=p0.clone().sub(f2.multiplyScalar(L*.25));
+ if(!H3)H3={pos,q,L};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(L-H3.L)*.6}}
 
 /* ---------- face tracking ---------- */
 function setPose(lm_){const pt=i=>({x:lm_[i].x*vw,y:lm_[i].y*vh}),a=pt(234),b=pt(454),n=pt(1),dx=b.x-a.x,dy=b.y-a.y,W=Math.hypot(dx,dy),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
