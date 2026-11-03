@@ -104,6 +104,10 @@ footer{text-align:center;padding:40px;color:var(--soft);font-size:13px;border-to
 <footer>© 2026 Aurelle · Prices in Pakistani Rupees · Free delivery on orders over Rs 5,000</footer>
 <div id="toast"></div>
 
+<script>
+window.__errs=[];window.addEventListener('error',function(e){window.__errs.push(e.message)});window.addEventListener('unhandledrejection',function(e){window.__errs.push(String(e.reason))});
+setTimeout(function(){var g=document.getElementById('grid');if(g&&!g.children.length){g.innerHTML='<p style="grid-column:1/-1;text-align:center;padding:30px;line-height:1.7">The collection could not load.<br>Press <b>Ctrl+F5</b> to refresh. If it stays empty, send this message to your developer:<br><small>'+(window.__errs.join(' | ')||'no error captured')+'</small></p>'}},4000);
+</script>
 <script type="module">
 const $=id=>document.getElementById(id);
 const stage=$('stage'),vid=$('vid'),pic=$('pic'),cv=$('cv'),msg=$('msg'),ctx=cv.getContext('2d');
@@ -203,7 +207,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-c],[data-t
  if(b.dataset.t){const i=ITEMS.find(x=>x.id===b.dataset.t);if(sel[i.cat]===i.id)delete sel[i.cat];else sel[i.cat]=i.id;if(!mode)$('studio').scrollIntoView({behavior:'smooth'})}
  if(b.dataset.r)delete sel[b.dataset.r];
  if(b.dataset.z)delete adj[b.dataset.z];
- if(b.dataset.fl){flipW=!flipW;H3=null}
+ if(b.dataset.fl){flipW=!flipW;H3=null;try{localStorage.setItem('aurelleFlip',flipW?'1':'0')}catch(e){}}
  if(b.dataset.a){const i=ITEMS.find(x=>x.id===b.dataset.a);bag.push(i);toast(i.name+' added to bag')}
  renderShop()});
 
@@ -226,7 +230,7 @@ async function warm(list){
     await c.put(u,new Response(new Blob(ch),{headers:r.headers}))}else await c.put(u,r);
    done+=sz;setP(done/total)}
   catch(e){console.warn('skip',u)}}}
-let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false,flipW=false;
+let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false,flipW=(()=>{try{return localStorage.getItem('aurelleFlip')==='1'}catch(e){return false}})(),lastSeen=0;
 async function boot(){
  try{
   if(/FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\//i.test(navigator.userAgent))msg.textContent='Tip: open this link in Chrome or Safari so the camera can start';
@@ -263,10 +267,10 @@ async function load3D(local){try{
  m.position.sub(c);const fit=new THREE.Group();fit.add(m);fit.userData.k=.85/s.x;
  m.traverse(o=>{if(o.isMesh){o.material.metalness=.3;o.material.roughness=.5;o.material.envMapIntensity=1.3;o.renderOrder=1}});
  rig3.add(fit);r3=r;cam3=cam;m3=fit;resize(vw,vh);
- try{const gw=await new Promise((ok,no)=>new THREE.GLTFLoader().load('models/w1.glb',ok,undefined,no));
+ try{const gw=await new Promise((ok,no)=>new THREE.GLTFLoader().load('models/watch-v2.glb',ok,undefined,no));
   const wm=gw.scene,wb=new THREE.Box3().setFromObject(wm),wc=wb.getCenter(new THREE.Vector3()),ws=wb.getSize(new THREE.Vector3());
   wm.position.set(-wc.x,-(wb.min.y+.45*ws.y),-wc.z);const wf=new THREE.Group();wf.add(wm);wf.scale.setScalar(1/ws.z);
-  wm.traverse(o=>{if(o.isMesh){if(o.material.map){o.material.metalness=.5;o.material.roughness=.35}else o.material.color.multiplyScalar(.7);o.material.envMapIntensity=1.3}});
+  wm.traverse(o=>{if(o.isMesh){if(o.material.map){o.material.metalness=.55;o.material.roughness=.3}else o.material.color.multiplyScalar(.7);o.material.envMapIntensity=1.3}});
   const occ2=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.75,32),new THREE.MeshBasicMaterial({colorWrite:false}));occ2.rotation.z=Math.PI/2;occ2.renderOrder=-1;wf.add(occ2);
   rigW=new THREE.Group();rigW.add(wf);rigW.visible=false;sc3.add(rigW);mw=rigW;
   ITEMS.push({id:'w1',cat:'Watches',name:'Luxury Watch',price:12500,img:thumb(wf),contain:1,type:'watch',w:1});renderShop()}catch(e){console.info('no watch model',e)}
@@ -288,13 +292,13 @@ async function loadHand(){if(hand||handBusy||!lmMod)return;handBusy=true;msg.tex
  for(const u of urls){for(const d of (handCPU?['CPU']:[fb,'CPU'])){try{hand=await lmMod.HandLandmarker.createFromOptions(lmFs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numHands:1});break}catch(e){}}if(hand)break}
  msg.textContent=hand?'Hand tracking ready — show the back of your wrist to the camera':'Hand tracking unavailable on this device';handBusy=false}
 function setHand(res){const Lm=res.landmarks&&res.landmarks[0],WL=res.worldLandmarks&&res.worldLandmarks[0],wt=sel.Watches==='w1';
- if(!Lm){H3=null;if(wt)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
- if(wt)msg.textContent='Hand detected ✓';
+ if(!Lm){if(performance.now()-lastSeen>350)H3=null;if(wt)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
+ if(wt)msg.textContent='Hand detected ✓';lastSeen=performance.now();
  const p=i=>new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,0),w=i=>WL?new THREE.Vector3(WL[i].x,-WL[i].y,-WL[i].z):new THREE.Vector3(Lm[i].x*vw,-Lm[i].y*vh,-Lm[i].z*vw);
  const p0=p(0),f2=p(9).sub(p0),len2=f2.length();f2.normalize();
  const fw=w(9).sub(w(0)),lenW=fw.length();fw.normalize();
  const n=new THREE.Vector3().crossVectors(w(5).sub(w(17)),fw).normalize();
- const isRight=res.handedness&&res.handedness[0]&&res.handedness[0][0].categoryName==='Left';   // camera image is not mirrored, so the label is swapped
+ const isRight=res.handedness&&res.handedness[0]&&res.handedness[0][0].categoryName==='Right';   // matches the real hand in your test (label as reported)
  const back=(isRight!==flipW)?n.clone().negate():n.clone();
  back.sub(fw.clone().multiplyScalar(back.dot(fw))).normalize();const z=new THREE.Vector3().crossVectors(fw,back).normalize();
  const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(fw,back,z));
@@ -337,7 +341,7 @@ function loop(){requestAnimationFrame(loop);
  if(lm&&mode==='cam'&&run==='VIDEO'&&vid.readyState>=2&&vid.currentTime!==lastT&&now-lastRun>28&&!rebuilding){lastT=vid.currentTime;lastRun=now;
   try{handle(lm.detectForVideo(vid,now))}catch(e){if(fb==='GPU'){fb='CPU';rebuilding=true;lmMk('CPU').then(x=>{lm=x;run='VIDEO'}).finally(()=>rebuilding=false)}}}
  if(sel.Watches==='w1'&&lmMod&&!hand&&!handBusy)loadHand();
- if(hand&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&now-lastHand>40){lastHand=now;try{setHand(hand.detectForVideo(vid,now))}catch(e){H3=null;if(!handCPU){handCPU=true;hand=null}}}
+ if(hand&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&now-lastHand>28){lastHand=now;try{setHand(hand.detectForVideo(vid,now))}catch(e){H3=null;if(!handCPU){handCPU=true;hand=null}}}
  draw();render3D()}
 renderShop();loop();boot();
 </script>
