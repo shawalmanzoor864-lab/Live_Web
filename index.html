@@ -91,7 +91,7 @@ footer{text-align:center;padding:40px;color:var(--soft);font-size:13px;border-to
   </div>
   <div class="side">
     <h2>Your look</h2>
-    <p>Mix one piece from each category — earrings, necklace, hairband, clips and hijab all combine on you.</p>
+    <p>Mix one piece from each category — earrings, necklaces, hijabs, hats, glasses and a watch all combine on you.</p><p style="margin-top:10px;padding:10px 14px;background:#ffffff14;border-radius:12px;font-size:13px"><b>Auto-fit is on.</b> Every piece sizes and aligns itself to your face or hand. Use the sliders below only to fine-tune; your changes are remembered. <b>Back to auto-fit</b> undoes them.</p>
     <div id="worn"></div>
   </div>
 </section>
@@ -193,25 +193,25 @@ function draw(){ctx.clearRect(0,0,vw,vh);if(!S||!found||!mode)return;
  ctx.restore()}
 
 /* ---------- shop UI ---------- */
-const sel={},bag=[],adj={};let filter='All';
+const sel={},bag=[],adj=(()=>{try{return JSON.parse(localStorage.getItem('aurelleAdj'))||{}}catch(e){return{}}})(),saveAdj=()=>{try{localStorage.setItem('aurelleAdj',JSON.stringify(adj))}catch(e){}};let filter='All';
 const fmt=n=>'Rs '+n.toLocaleString('en-US');
 const toast=t=>{const e=$('toast');e.textContent=t;e.classList.add('s');setTimeout(()=>e.classList.remove('s'),1800)};
 function renderShop(){
  const cats=['All',...new Set(ITEMS.map(i=>i.cat))];
  $('tabs').innerHTML=cats.map(c=>`<button class="tab ${c===filter?'on':''}" data-c="${c}">${c}</button>`).join('');
  $('grid').innerHTML=ITEMS.filter(i=>filter==='All'||i.cat===filter).map(i=>`<div class="card ${sel[i.cat]===i.id?'on':''}"><div class="ph"><img src="${i.img}" alt="${i.name}"${i.contain?' style="object-fit:contain;padding:18px;mix-blend-mode:multiply"':''}></div><div class="bd"><small>${i.cat}</small><h3>${i.name}</h3><div class="pr">${fmt(i.price)}</div><div class="row"><button class="btn" data-t="${i.id}">${sel[i.cat]===i.id?'Remove try-on':'Try on'}</button><button class="btn ghost" data-a="${i.id}">Add to bag</button></div></div></div>`).join('');
- $('worn').innerHTML=Object.values(sel).map(id=>{const i=ITEMS.find(x=>x.id===id);const A=adj[i.id]||{s:1,x:0,y:0},sl=(k,l,mn,mx,st)=>`<label>${l}<input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${A[k]||(k==='s'?1:0)}"></label>`;return `<div class="chip"><span>${i.name}<br><small style="opacity:.6">${fmt(i.price)}</small></span><button data-r="${i.cat}">✕</button><div class="adj" data-i="${i.id}">${sl('s','Size',.5,2,.02)}${sl('x',i.type==='ear'?'Spread':'Left ↔ Right',-.3,.3,.005)}${sl('y','Up ↕ Down',-.4,.4,.005)}${(i.type==='hat'||i.type==='glass'||i.type==='watch')?sl('r','Tilt °',-45,45,1):''}${i.type==='watch'?sl('a','Along arm',-.5,.5,.01)+sl('q','Spin around wrist °',-180,180,1):''}${i.type==='watch'?'<button class="btn ghost" data-fl="1" style="padding:6px;font-size:12px">Flip dial side (use if dial shows on the palm)</button>':''}<button class="btn ghost" data-z="${i.id}" style="padding:6px;font-size:12px">Reset alignment</button></div></div>`}).join('')||'<p style="opacity:.6;font-size:14px">Nothing selected yet.</p>';
+ $('worn').innerHTML=Object.values(sel).map(id=>{const i=ITEMS.find(x=>x.id===id);const A=adj[i.id]||{s:1,x:0,y:0},sl=(k,l,mn,mx,st)=>`<label>${l}<input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${A[k]||(k==='s'?1:0)}"></label>`;return `<div class="chip"><span>${i.name}<br><small style="opacity:.6">${fmt(i.price)}</small></span><button data-r="${i.cat}">✕</button><div class="adj" data-i="${i.id}">${sl('s','Size',.5,2,.02)}${sl('x',i.type==='ear'?'Spread':'Left ↔ Right',-.3,.3,.005)}${sl('y','Up ↕ Down',-.4,.4,.005)}${(i.type==='hat'||i.type==='glass'||i.type==='watch')?sl('r','Tilt °',-45,45,1):''}${i.type==='watch'?sl('a','Along arm',-.5,.5,.01)+sl('q','Spin around wrist °',-180,180,1):''}${i.type==='watch'?'<button class="btn ghost" data-fl="1" style="padding:6px;font-size:12px">Flip dial side (use if dial shows on the palm)</button>':''}<button class="btn ghost" data-z="${i.id}" style="padding:6px;font-size:12px">Back to auto-fit</button></div></div>`}).join('')||'<p style="opacity:.6;font-size:14px">Nothing selected yet.</p>';
  $('cart').textContent=`Bag · ${bag.length} · ${fmt(bag.reduce((s,i)=>s+i.price,0))}`}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-c],[data-t],[data-a],[data-r],[data-z],[data-fl]');if(!b)return;
  if(b.dataset.c)filter=b.dataset.c;
  if(b.dataset.t){const i=ITEMS.find(x=>x.id===b.dataset.t);if(sel[i.cat]===i.id)delete sel[i.cat];else sel[i.cat]=i.id;if(!mode)$('studio').scrollIntoView({behavior:'smooth'})}
  if(b.dataset.r)delete sel[b.dataset.r];
- if(b.dataset.z)delete adj[b.dataset.z];
+ if(b.dataset.z){delete adj[b.dataset.z];saveAdj()}
  if(b.dataset.fl){flipW=!flipW;H3=null;try{localStorage.setItem('aurelleFlip',flipW?'1':'0')}catch(e){}}
  if(b.dataset.a){const i=ITEMS.find(x=>x.id===b.dataset.a);bag.push(i);toast(i.name+' added to bag')}
  renderShop()});
 
-document.addEventListener('input',e=>{const t=e.target;if(!t.dataset.k)return;const id=t.closest('.adj').dataset.i;(adj[id]=adj[id]||{s:1,x:0,y:0})[t.dataset.k]=+t.value});
+document.addEventListener('input',e=>{const t=e.target;if(!t.dataset.k)return;const id=t.closest('.adj').dataset.i;(adj[id]=adj[id]||{s:1,x:0,y:0})[t.dataset.k]=+t.value;saveAdj()});
 /* ---------- engine boot: first visit downloads + saves everything, later visits are instant ---------- */
 const bootEl=$('boot'),barI=$('barI'),bootT=$('bootT');
 const EXTRA=[['models/n1.glb',723860]],CACHE='aurelle-v1';
@@ -282,7 +282,7 @@ function render3D(){if(!r3||!cam3)return;
  if(mw){const on=sel.Watches==='w1'&&H3&&mode;mw.visible=!!on;
   if(on){const A=adj.w1||{s:1,x:0,y:0,r:0},k=H3.L;mw.position.copy(H3.pos).add(H3.ax.clone().multiplyScalar((A.a||0)*k)).add(new THREE.Vector3(A.x*k*1.5,-A.y*k*1.5,0));
    const spin=new THREE.Quaternion().setFromAxisAngle(H3.ax,(A.q||0)*Math.PI/180),tilt=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-(A.r||0)*Math.PI/180);
-   mw.quaternion.copy(H3.q).premultiply(spin).premultiply(tilt);mw.scale.setScalar(.75*k*A.s)}}
+   mw.quaternion.copy(H3.q).premultiply(spin).premultiply(tilt);mw.scale.setScalar(H3.D*A.s)}}
  r3.render(sc3,cam3)}
 function thumb(g){const ts=new THREE.Scene();ts.environment=sc3.environment;ts.add(new THREE.AmbientLight(0xffffff,.5));const c=g.clone();c.rotation.set(.55,-.7,0);ts.add(c);
  const cm=new THREE.PerspectiveCamera(30,1.2,.05,50);cm.position.set(0,.1,3.4);cm.lookAt(0,0,0);r3.setSize(480,400,false);r3.render(ts,cm);const u=r3.domElement.toDataURL('image/png');r3.setSize(vw,vh,false);return u}
@@ -302,8 +302,10 @@ function setHand(res){const Lm=res.landmarks&&res.landmarks[0],WL=res.worldLandm
  const isRight=res.handedness&&res.handedness[0]&&res.handedness[0][0].categoryName==='Right';
  const bk=(isRight!==flipW)?n.clone().negate():n.clone(),back=bk.sub(ax.clone().multiplyScalar(bk.dot(ax))).normalize();
  const z=new THREE.Vector3().crossVectors(ax,back).normalize(),q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(ax,back,z));
- const L=WL?lenW*Math.max(p(5).sub(p(17)).length()/w(5).sub(w(17)).length(),l9/lenW):l9,pos=p0.clone().sub(ax.clone().multiplyScalar(L*.25));
- if(!H3)H3={pos,q,L,ax};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(L-H3.L)*.6;H3.ax.lerp(ax,.6).normalize()}}
+ const rr=WL?Math.max(p(5).sub(p(17)).length()/w(5).sub(w(17)).length(),l9/lenW):0;   // pixels per metre, the less foreshortened of two measurements
+ const L=WL?lenW*rr:l9,wm=WL?.72*w(5).sub(w(17)).length()+.008:0,D=WL?wm*rr:L*.64,pos=p0.clone().sub(ax.clone().multiplyScalar(D*.5));
+ if(wt&&WL)msg.textContent='Hand detected ✓ — wrist ≈ '+(wm*100).toFixed(1)+' cm';
+ if(!H3)H3={pos,q,L,ax,D};else{H3.pos.lerp(pos,.6);H3.q.slerp(q,.6);H3.L+=(L-H3.L)*.6;H3.D+=(D-H3.D)*.6;H3.ax.lerp(ax,.6).normalize()}}
 
 /* ---------- face tracking ---------- */
 function setPose(lm_){const pt=i=>({x:lm_[i].x*vw,y:lm_[i].y*vh}),a=pt(234),b=pt(454),n=pt(1),dx=b.x-a.x,dy=b.y-a.y,W=Math.hypot(dx,dy),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
