@@ -318,6 +318,7 @@ class OE{constructor(mc,b){this.mc=mc;this.b=b;this.x=null;this.d=0;this.t=0}
  reset(){this.x=null;this.d=0}}
 const HF={px:new OE(.9,.01),py:new OE(.9,.01),ax:new OE(1.2,.4),ay:new OE(1.2,.4),L:new OE(.35,.002),D:new OE(.35,.002)};
 const resetHF=()=>{for(const k in HF)HF[k].reset();hs=0;P3=null};
+let handL=0,DBG=null;const DEBUG=/[?&]debug/.test(location.search);
 function setHand(res){const now=performance.now(),Lm=res.landmarks&&res.landmarks[0],WL=res.worldLandmarks&&res.worldLandmarks[0],wt=sel.Watches==='w1';
  if(!Lm){if(now-lastSeen>600){H3=null;resetHF()}if(wt)msg.textContent='No hand found — hold your hand up, back of the wrist facing the camera';return}
  lastSeen=now;
@@ -338,13 +339,14 @@ function setHand(res){const now=performance.now(),Lm=res.landmarks&&res.landmark
  const z=new THREE.Vector3().crossVectors(ax,back).normalize(),q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(ax,back,z));
  // size: pixels-per-metre taken from the least foreshortened hand segments, so tilting the hand does not shrink the watch
  let D;
- if(WL){const r=[];for(const [a,b] of [[0,9],[5,17],[0,5],[0,17],[5,9],[9,13],[13,17]]){const d3=Wd(a).distanceTo(Wd(b));if(d3>1e-4)r.push(P(a).distanceTo(P(b))/d3)}
-  r.sort((u,v)=>v-u);D=r.length>1?.068*r[1]:.72*l9}
+ if(WL){const r=[];for(const [a,b] of [[0,9],[0,5],[0,13],[0,17]]){const d3=Wd(a).distanceTo(Wd(b));if(d3>.02)r.push(P(a).distanceTo(P(b))/d3)}
+  r.sort((u,v)=>u-v);D=r.length?.06*r[r.length>>1]:.85*l9}   // only the long wrist-to-knuckle segments are used: short finger-to-finger ones go wild when the palm is edge-on
  else{const pw=P(5).distanceTo(P(17));D=.85*Math.max(pw,l9*.85)}
- D=Math.min(2.5*l9,Math.max(.3*l9,D));
- const pos=p0.clone().sub(ax.clone().multiplyScalar(D*.5));
+ D=Math.min(1.6*l9,Math.max(.4*l9,D));
+ handL=l9;const pos=p0.clone().sub(ax.clone().multiplyScalar(D*.3));   // D = 6cm in pixels; landmark 0 is already at the wrist crease so only ~1.8cm further up the arm (was 3cm: slid down the forearm and drifted sideways when the wrist was bent)
  const fx=HF.px.f(pos.x,now),fy=HF.py.f(pos.y,now),fD=HF.D.f(D,now),fL=HF.L.f(D/.72,now);
  if(wt)msg.textContent='Hand detected ✓ — watch auto-fitted to your wrist';
+ if(DEBUG)DBG={p0:p0.clone(),axH:axH.clone(),ax:ax.clone(),pos:new THREE.Vector3(fx,fy,0),l9,arm:(P3&&now-P3.t<900)?P3.ax.clone():null,kn:[5,9,13,17].map(P)};
  if(!H3)H3={pos:new THREE.Vector3(fx,fy,0),q:q.clone(),L:fL,ax:ax.clone(),D:fD,t:now};
  else{if(q.dot(H3.q)<0)q.set(-q.x,-q.y,-q.z,-q.w);
   const dt=Math.max((now-H3.t)/1000,.001),ang=2*Math.acos(Math.min(1,Math.abs(q.dot(H3.q))))/dt;
@@ -354,9 +356,9 @@ async function loadPose(){if(pose||poseBusy||!lmMod)return;poseBusy=true;
  const urls=(lmLocal?['vendor/pose_landmarker_lite.task']:[]).concat('https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task');
  for(const u of urls){for(const d of (handCPU?['CPU']:[fb,'CPU'])){try{pose=await lmMod.PoseLandmarker.createFromOptions(lmFs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numPoses:1});break}catch(e){}}if(pose)break}
  poseBusy=false}
-function setArm(res){const L=res.landmarks&&res.landmarks[0];if(!L||!handW)return;let best=null,bd=.14;
- [[15,13],[16,14]].forEach(([wi,ei])=>{const a=L[wi],e=L[ei];if(!a||!e||(a.visibility!==undefined&&a.visibility<.4)||(e.visibility!==undefined&&e.visibility<.4))return;
-  const d=Math.hypot(a.x-handW.x,a.y-handW.y);if(d<bd){const v=new THREE.Vector3((a.x-e.x)*vw,-(a.y-e.y)*vh,0);if(v.length()>.05*vw){bd=d;best=v.normalize()}}});
+function setArm(res){const L=res.landmarks&&res.landmarks[0];if(!L||!handW)return;let best=null,bd=.07;
+ [[15,13],[16,14]].forEach(([wi,ei])=>{const a=L[wi],e=L[ei];if(!a||!e||(a.visibility!==undefined&&a.visibility<.6)||(e.visibility!==undefined&&e.visibility<.6))return;
+  const d=Math.hypot(a.x-handW.x,a.y-handW.y);if(d<bd){const v=new THREE.Vector3((a.x-e.x)*vw,-(a.y-e.y)*vh,0);const fl=v.length();if(fl>.05*vw&&(!handL||(fl>1.0*handL&&fl<4.5*handL))){bd=d;best=v.normalize()}}});
  if(best)P3={ax:best,t:performance.now()}}
 /* ---------- face tracking ---------- */
 function setPose(lm_){const pt=i=>({x:lm_[i].x*vw,y:lm_[i].y*vh}),a=pt(234),b=pt(454),n=pt(1),dx=b.x-a.x,dy=b.y-a.y,W=Math.hypot(dx,dy),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
@@ -397,7 +399,14 @@ function loop(){requestAnimationFrame(loop);
  if(hand&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&vid.currentTime!==lastHT&&now-lastHand>16){lastHT=vid.currentTime;lastHand=now;let hr=null;const t0=performance.now();try{hr=hand.detectForVideo(vid,now)}catch(e){H3=null;if(!handCPU){handCPU=true;hand=null}}handMs+=(performance.now()-t0-handMs)*.2;if(hr)try{setHand(hr)}catch(e){console.warn('hand fit',e)}}
  if(sel.Watches==='w1'&&lmMod&&hand&&!pose&&!poseBusy)loadPose();
  if(pose&&sel.Watches==='w1'&&mode==='cam'&&vid.readyState>=2&&now-lastPose>(handMs>18?220:110)){lastPose=now;try{setArm(pose.detectForVideo(vid,now))}catch(e){P3=null}}
- draw();render3D()}
+ draw();dbgDraw();render3D()}
+function dbgDraw(){if(!DEBUG||!DBG||!mode||sel.Watches!=='w1')return;const d=DBG,L=(a,b,c)=>{ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(a.x,-a.y);ctx.lineTo(b.x,-b.y);ctx.stroke()},
+  Dt=(p,c,r)=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,-p.y,r,0,7);ctx.fill()};ctx.save();
+  d.kn.forEach(k=>Dt(k,'#f0f',4));
+  L(d.p0,d.p0.clone().add(d.axH.clone().multiplyScalar(d.l9*1.3)),'#ff0');   // yellow: hand direction
+  if(d.arm)L(d.p0,d.p0.clone().sub(d.arm.clone().multiplyScalar(d.l9*1.3)),'#0f0');   // green: forearm from pose model
+  L(d.p0,d.p0.clone().sub(d.ax.clone().multiplyScalar(d.l9*1.3)),'#0ff');   // cyan: direction the watch is pushed along
+  Dt(d.p0,'#f00',6);Dt(d.pos,'#fff',5);ctx.restore()}
 renderShop();loop();boot();
 </script>
 </body>
