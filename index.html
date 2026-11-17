@@ -216,7 +216,9 @@ document.addEventListener('input',e=>{const t=e.target;if(!t.dataset.k)return;co
 const bootEl=$('boot'),barI=$('barI'),bootT=$('bootT');
 const EXTRA=[['models/n1.glb',723860]],CACHE='aurelle-v1';
 const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-const setP=(f,t)=>{barI.style.width=Math.min(100,Math.round(f*100))+'%';if(t)bootT.textContent=t};
+let bootBase='Preparing your try-on studio…';
+const setP=(f,t)=>{if(t)bootBase=t;const p=Math.min(100,Math.round(f*100));barI.style.width=p+'%';bootT.textContent=bootBase+(f>0?' '+p+'%':'')};
+const withTimeout=(p,ms,what)=>Promise.race([p,new Promise((ok,no)=>setTimeout(()=>no(new Error(what+' took too long')),ms))]);
 const loadScript=u=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>no(new Error(u));document.head.appendChild(s)});
 async function warm(list){
  if(!('caches' in window))return;
@@ -231,23 +233,34 @@ async function warm(list){
    done+=sz;setP(done/total)}
   catch(e){console.warn('skip',u)}}}
 let lm=null,lmMk=null,fb='GPU',run='VIDEO',rebuilding=false,lmMod=null,lmFs=null,lmLocal=false,hand=null,handBusy=false,H3=null,lastHand=0,handCPU=false,flipW=(()=>{try{return localStorage.getItem('aurelleFlip')==='1'}catch(e){return false}})(),lastSeen=0,pose=null,poseBusy=false,P3=null,lastPose=0,handW=null;
+async function startEngine(loc){
+ const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+ setP(.85,'Loading face engine…');
+ const mod=await withTimeout(import(loc?'./vendor/mp/vision_bundle.mjs':CDN+'/vision_bundle.mjs'),30000,'Engine script');
+ const fs=await withTimeout(mod.FilesetResolver.forVisionTasks(loc?'vendor/mp/wasm':CDN+'/wasm'),30000,'Engine files');
+ const model=loc?'vendor/face_landmarker.task':'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+ const mk=d=>mod.FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:model,delegate:d},runningMode:'VIDEO',numFaces:1});
+ setP(.92,'Starting face tracking…');
+ let l;try{l=await withTimeout(mk('GPU'),20000,'GPU start')}catch(e){console.warn('GPU failed, using CPU',e);fb='CPU';l=await withTimeout(mk('CPU'),40000,'CPU start')}
+ lmMod=mod;lmFs=fs;lmLocal=loc;lmMk=mk;return l}
 async function boot(){
+ const retry=()=>{if(!bootEl.querySelector('button')){const b=document.createElement('button');b.className='btn';b.textContent='Retry';b.onclick=()=>location.reload();bootEl.appendChild(b)}};
+ const wd=setTimeout(()=>{if(bootEl.style.display!=='none'){bootT.textContent='Still working… stuck at: '+bootBase.replace('…','');bootEl.querySelector('small').textContent='This is taking too long. Press Retry. If it keeps happening, add ?reset to the end of the link and open it.';retry()}},25000);
  try{
+  if(/[?&]reset\b/.test(location.search)){try{for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister();for(const k of await caches.keys())await caches.delete(k)}catch(e){}location.replace(location.pathname);return}
   if(/FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\//i.test(navigator.userAgent))msg.textContent='Tip: open this link in Chrome or Safari so the camera can start';
   let local=false,list=[];
-  try{const r=await fetch('vendor/manifest.json');if(r.ok){list=(await r.json()).files.map(f=>['vendor/'+f.p,f.s]);local=true}}catch(e){}
+  setP(.02,'Checking files…');
+  try{const r=await withTimeout(fetch('vendor/manifest.json',{cache:'no-store'}),8000,'File list');if(r.ok){list=(await r.json()).files.map(f=>['vendor/'+f.p,f.s]);local=true}}catch(e){console.warn('no local files',e)}
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-  setP(0,'Preparing your try-on studio…');
-  await warm(local?list.concat(EXTRA):EXTRA);
-  const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-  const mod=await import(local?'./vendor/mp/vision_bundle.mjs':CDN+'/vision_bundle.mjs');
-  const fs=await mod.FilesetResolver.forVisionTasks(local?'vendor/mp/wasm':CDN+'/wasm');lmMod=mod;lmFs=fs;lmLocal=local;
-  const model=local?'vendor/face_landmarker.task':'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
-  lmMk=d=>mod.FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:model,delegate:d},runningMode:'VIDEO',numFaces:1});
-  try{lm=await lmMk('GPU')}catch(e){fb='CPU';lm=await lmMk('CPU')}
+  setP(.05,local?'Installing try-on engine — first visit only…':'Loading try-on engine…');
+  await Promise.race([warm(local?list.concat(EXTRA):EXTRA),new Promise(r=>setTimeout(r,60000))]);
+  try{lm=await startEngine(local)}catch(e1){console.warn('first attempt failed',e1);if(!local)throw e1;setP(.85,'Trying backup source…');lm=await startEngine(false)}
   ['bCam','bUp'].forEach(i=>$(i).disabled=false);msg.textContent='Ready — start your camera or upload a photo';
-  bootEl.style.display='none';load3D(local);
- }catch(e){bootEl.style.display='none';msg.textContent='Could not start the try-on engine — check your internet and refresh';console.error(e)}}
+  clearTimeout(wd);bootEl.style.display='none';load3D(local);
+ }catch(e){clearTimeout(wd);console.error(e);bootT.textContent='Could not start the try-on engine';barI.style.width='0%';
+  const sm=bootEl.querySelector('small');sm.textContent='Reason: '+(e&&e.message?e.message:e)+'. Check your internet, then try again.';
+  retry()}}
 
 /* ---------- 3D layer (real 3D necklace from your .glb) ---------- */
 let sc3,rig3,T3=null,rigW=null,mw=null;
